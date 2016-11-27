@@ -1,8 +1,10 @@
 
 #include <SoftwareSerial.h>
+#include <SimpleDHT.h>
 
 #define RX_ESP 10		// Arduino RX (from Esp TX)
 #define TX_ESP 11		// Arduino TX (to Esp RX)
+#define RXTX_DHT11 2	// Arduino DHT11
 
 #define BRIKSDALL_URL "192.168.1.33"		// Briksdall Url
 #define BRIKSDALL_PORT "81"					// Briksdall Port
@@ -10,8 +12,15 @@
 #define BRIKSDALL_TIMEOUT 5000;				// Briksdall Connection Timeout (milliseconds)
 
 SoftwareSerial esp8266(RX_ESP, TX_ESP);
+SimpleDHT11 dht11;
 
+byte current_T = 0;		// Temperature current value
+byte current_H = 0;		// Humidity current value
 
+// for DHT11, 
+//      VCC: 5V or 3V
+//      GND: GND
+//      DATA: 2
 
 void setup()
 {
@@ -26,11 +35,6 @@ void setup()
 void loop()
 {
 
-	String type = "T";
-	String value = "95";
-
-	bool sent = send2Briksdall(type, value);
-
 	/* debug/echo seriale-esp */
 	//while (esp8266.available()) {
 	//	Serial.print((char) esp8266.read());
@@ -43,7 +47,43 @@ void loop()
 	//delay(2000);
 	/* fine debug serial-esp */
 
+	
+	bool sendData = readDHT11();;
+	Serial.println("DHT11: T=" + String(current_T) + " H=" + String(current_H));
+	if (sendData) {
+		String type = "T";
+		String value = String(current_T);
+
+		bool sent = send2Briksdall(type, value);
+	}
+
 }
+
+
+bool readDHT11() {
+	
+	bool retVal = false;
+	int pinDHT11 = RXTX_DHT11;
+	delay(1000);	// DHT11 sampling rate is 1HZ.
+
+	// read with raw sample data.
+	byte temperature = 0;
+	byte humidity = 0;
+	byte data[40] = { 0 };
+	if (dht11.read(pinDHT11, &temperature, &humidity, data)) {
+		Serial.print("DHT11: Read failed.");
+		return false;
+	}
+
+	retVal = (current_T != temperature);
+	if (retVal) {
+		current_T = temperature;
+		current_H = humidity;
+	}
+
+	return retVal;
+}
+
 
 
 bool send2Briksdall(String type, String value) {
