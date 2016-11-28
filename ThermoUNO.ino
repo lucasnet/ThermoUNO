@@ -14,13 +14,9 @@
 SoftwareSerial esp8266(RX_ESP, TX_ESP);
 SimpleDHT11 dht11;
 
-byte current_T = 0;		// Temperature current value
-byte current_H = 0;		// Humidity current value
+byte _temperature = 0;		// temperature value to send
+byte _humidity = 0;			// humidity value to send
 
-// for DHT11, 
-//      VCC: 5V or 3V
-//      GND: GND
-//      DATA: 2
 
 void setup()
 {
@@ -47,63 +43,91 @@ void loop()
 	//delay(2000);
 	/* fine debug serial-esp */
 
-	
-	bool sendData = readDHT11();;
-	Serial.println("DHT11: T=" + String(current_T) + " H=" + String(current_H));
-	if (sendData) {
-		String type = "T";
-		String value = String(current_T);
+	long millisec = millis();
 
+	if ((millisec % 20000) == 0) {
+		readDHT11();
+
+		String type = "T";
+		String value = String(_temperature);
 		bool sent = send2Briksdall(type, value);
 	}
 
 }
 
 
-bool readDHT11() {
-	
-	bool retVal = false;
+void readDHT11() {
+		
 	int pinDHT11 = RXTX_DHT11;
-	delay(1000);	// DHT11 sampling rate is 1HZ.
 
+	byte temperatures[5] = { 0,0,0,0,0 };		// Temperature values
+	byte humidities[5] = { 0,0,0,0,0 };			// Humidity values
+	byte position = 0;
+	
 	// read with raw sample data.
-	byte temperature = 0;
-	byte humidity = 0;
-	byte data[40] = { 0 };
-	if (dht11.read(pinDHT11, &temperature, &humidity, data)) {
-		Serial.print("DHT11: Read failed.");
-		return false;
+	for (int i = 0; i < 5; i++) {
+		
+		byte temperature = 0;
+		byte humidity = 0;
+		byte data[40] = { 0 };
+
+		if (dht11.read(pinDHT11, &temperature, &humidity, data)) {
+			Serial.print("DHT11: Read failed.");
+			temperatures[i] = 0;
+			humidities[i] = 0;
+		}
+
+		temperatures[i] = temperature;
+		humidities[i] = humidity;
+
+		delay(1000);	// DHT11 sampling rate is 1HZ.
 	}
 
-	retVal = (current_T != temperature);
-	if (retVal) {
-		current_T = temperature;
-		current_H = humidity;
+
+
+	// average of values 
+	int sumT = 0;
+	String logT = "";
+	int sumH = 0;
+	String logH = "";
+
+	for (int i = 0; i < 5; i++) {
+		sumT += temperatures[i];
+		sumH += humidities[i];
+
+		logT += String(temperatures[i]);
+		logT += " ";
+		logH += String(humidities[i]);
+		logH += " ";
 	}
 
-	return retVal;
+	_temperature = sumT / 5;
+	_humidity = sumH / 5;
+
+	Serial.println("DHT11: Temperature values [ " + logT + "] - Av: " + String(_temperature));
+	Serial.println("DHT11: Humidity values [ " + logH + "] - Av: " + String(_humidity));
+
+	return;
 }
-
 
 
 bool send2Briksdall(String type, String value) {
 	String timestamp = String(millis());
 
-	String logmessage = "Invio dati, tentativo ";
+	String logmessage = "ESP8266: Sending Data, attempt ";
 	bool transmissionOK = false;
 	int i = 1;
 	do {
-		Serial.println("-----------------------");
 		Serial.println(logmessage + String(i));
 		transmissionOK = httppost(timestamp, type, value);
 		i++;
 	} while ((!transmissionOK) && (i < 11));
 
 	if (transmissionOK) {
-		Serial.println("Invio dati completato con successo.");
+		Serial.println("ESP8266: Operation completed.");
 	}
 	else {
-		Serial.println("Invio dati non riuscito.");
+		Serial.println("ESP8266: Warning Data NOT sent.");
 	}
 
 	return transmissionOK;
@@ -112,8 +136,8 @@ bool send2Briksdall(String type, String value) {
 // Configurazione WiFi
 void setupWiFi() {
 	// Impostazioni network Esp8266 (WiFi + Lan)
-	// WIFI_SSID "Telecom-33318697" -> non serve perche impostato di default (attraverso AT+CWJAP_DEF)
-	// WIFI_PSW "qwertyuiopASDFGHJKL123456789 -> non serve perche impostato di default (attraverso AT+CWJAP_DEF)
+	// WIFI_SSID "Telecom-xxxxxxx" -> non serve perche impostato di default (attraverso AT+CWJAP_DEF)
+	// WIFI_PSW  -> non serve perche impostato di default (attraverso AT+CWJAP_DEF)
 	// IPADDR "192.168.1.100" -> non serve perche impostato di default (attraverso AT+CIPSTA_DEF)
 	// NETMASK "255.255.255.0" -> non serve perche impostato di default (attraverso AT+CIPSTA_DEF)
 	// GATEWAY "192.168.1.1" -> non serve perche impostato di default (attraverso AT+CIPSTA_DEF)
