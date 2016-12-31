@@ -8,7 +8,7 @@
 
 #define BRIKSDALL_URL "192.168.1.33"		// Briksdall Url
 #define BRIKSDALL_PORT "81"					// Briksdall Port
-#define BRIKSDALL_WS "/ws/hub.ashx"			// Briksdall Entry Point
+#define BRIKSDALL_HUB "/ws/hub.ashx"		// Briksdall Hub Entry Point
 #define BRIKSDALL_TIMEOUT 5000;				// Briksdall Connection Timeout (milliseconds)
 
 SoftwareSerial esp8266(RX_ESP, TX_ESP);
@@ -18,15 +18,16 @@ byte _temperature = 0;		// temperature value to send
 byte _humidity = 0;			// humidity value to send
 
 
+
+
 void setup()
 {
 	Serial.begin(9600);		// Log aulla seriale standard.
 	esp8266.begin(115200);	// comunicazione con esp8266
 
 	setupWiFi();			// setup WiFi
+
 }
-
-
 
 void loop()
 {
@@ -56,6 +57,13 @@ void loop()
 }
 
 
+
+
+
+// function: readDHT11
+// Read data from DHT11. Fill global variables...
+// Param -> none.
+// Return value -> none.
 void readDHT11() {
 		
 	int pinDHT11 = RXTX_DHT11;
@@ -111,8 +119,14 @@ void readDHT11() {
 }
 
 
+// function: send2Briksdall
+// Data sending process (with retries if something goes wrong).
+// Param -> type : "type" value
+// Param -> value : "value" value
+// Return value -> true if trasmission completes successfully, false otherwise.
 bool send2Briksdall(String type, String value) {
-	String timestamp = String(millis());
+	//String timestamp = String(millis());
+	String timestamp = "0";	// no timestamp because Arduino doesn't know what time is it...
 
 	String logmessage = "ESP8266: Sending Data, attempt ";
 	bool transmissionOK = false;
@@ -133,7 +147,10 @@ bool send2Briksdall(String type, String value) {
 	return transmissionOK;
 }
 
-// Configurazione WiFi
+// function: setupWiFi
+// WiFi configuration.
+// Param -> none.
+// Return value -> none.
 void setupWiFi() {
 	// Impostazioni network Esp8266 (WiFi + Lan)
 	// WIFI_SSID "Telecom-xxxxxxx" -> non serve perche impostato di default (attraverso AT+CWJAP_DEF)
@@ -147,11 +164,17 @@ void setupWiFi() {
 	sendByEsp8266("AT+CIPMUX=1", timeout);		// configura per connessioni multiple
 }
 
+// function: httppost
+// Main function for send data to Briksdall via an http post request.
+// Param -> timestamp : "timestamp" value
+// Param -> type : "type" value
+// Param -> value : "value" value
+// Return value -> always true
 bool httppost(String timestamp, String type, String value) {
 
 	String server = BRIKSDALL_URL;
 	String port = BRIKSDALL_PORT;
-	String ws = BRIKSDALL_WS;
+	String ws = BRIKSDALL_HUB;
 	long timeout = BRIKSDALL_TIMEOUT;
 	String datarcv = "";
 	bool operationOK = true;
@@ -232,6 +255,11 @@ bool httppost(String timestamp, String type, String value) {
 	return true;
 }
 
+// function: sendByEsp8266
+// Send data on the air by Esp8266 and wait for a response...
+// Param -> rawdata : data (raw) to send
+// Param -> timeout : timeout for the response
+// Return value -> data received as a response
 String sendByEsp8266(String rawdata, long timeout) {
 	String datarcv = "";
 
@@ -249,6 +277,10 @@ String sendByEsp8266(String rawdata, long timeout) {
 	return datarcv;
 }
 
+// function: received_ok
+// Find an "ok" response inside a message. The "ok" is identified by a "OK", "CONNECT", ">" strings.
+// Param -> rawdata : the message (raw)
+// Return value -> true if an "ok" is found inside the param "rawdata"
 bool received_ok(String rawdata) {
 	bool retval = false;
 	const int len = 3;
@@ -267,3 +299,4 @@ bool received_ok(String rawdata) {
 
 	return retval;
 }
+
