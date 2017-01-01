@@ -11,8 +11,14 @@
 #define BRIKSDALL_HUB "/ws/hub.ashx"		// Briksdall Hub Entry Point
 #define BRIKSDALL_TIMEOUT 5000;				// Briksdall Connection Timeout (milliseconds)
 
-SoftwareSerial esp8266(RX_ESP, TX_ESP);
-SimpleDHT11 dht11;
+#define DEVICE_ID "auno_01";				// Device ID -> change it for every arduino board!!!
+
+#define POOL_INTERVAL 30;					// Query DHT11 interval (in minutes)
+
+
+SoftwareSerial esp8266(RX_ESP, TX_ESP);		// Serial software for comunicating with esp8266
+SimpleDHT11 dht11;							// global interface for comunicating with dht11 sensor
+
 
 byte _temperature = 0;		// temperature value to send
 byte _humidity = 0;			// humidity value to send
@@ -44,9 +50,11 @@ void loop()
 	//delay(2000);
 	/* fine debug serial-esp */
 
+	long pool_interval = POOL_INTERVAL;
+	pool_interval = pool_interval * 60 * 1000;
 	long millisec = millis();
 
-	if ((millisec % 20000) == 0) {
+	if ((millisec % pool_interval) == 0) {
 		readDHT11();
 
 		String type = "T";
@@ -175,6 +183,7 @@ bool httppost(String timestamp, String type, String value) {
 	String server = BRIKSDALL_URL;
 	String port = BRIKSDALL_PORT;
 	String ws = BRIKSDALL_HUB;
+	String device_id = DEVICE_ID;
 	long timeout = BRIKSDALL_TIMEOUT;
 	String datarcv = "";
 	bool operationOK = true;
@@ -200,7 +209,7 @@ bool httppost(String timestamp, String type, String value) {
 
 
 	// invio dati step 1 lunghezza ...
-	String uri = ws + "/esp8266";
+	String uri = ws + "/" + device_id;
 	String rawdata = "timestamp=" + timestamp + "&" + type + "=" + value;
 	String postRequest =
 		"POST " + uri + " HTTP/1.0\r\n" +
