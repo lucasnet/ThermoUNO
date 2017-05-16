@@ -1,44 +1,71 @@
+// Network Settings Esp8266 (WiFi + Lan)
+// WIFI_SSID "Telecom-xxxxxxx" -> set by default [AT+CWJAP_DEF]
+// WIFI_PSW  -> set by default [AT+CWJAP_DEF]
+// IPADDR "192.168.1.100" -> set by default [AT+CIPSTA_DEF]
+// NETMASK "255.255.255.0" -> set by default [AT+CIPSTA_DEF]
+// GATEWAY "192.168.1.1" -> set by default [AT+CIPSTA_DEF]
+
+
+// LIBRARIES definition
 
 #include <SoftwareSerial.h>
-#include <SimpleDHT.h>
+//#include <SimpleDHT.h>
 
-#define RX_ESP 10		// Arduino RX (from Esp TX)
-#define TX_ESP 11		// Arduino TX (to Esp RX)
-#define RXTX_DHT11 2	// Arduino DHT11
 
+
+// CONSTANTS definition
+
+// Arduino PIN settings
+#define RX_ESP 10							// Arduino RX pin (from Esp TX)
+#define TX_ESP 11							// Arduino TX pin (to Esp RX)
+#define RXTX_DHT11 2						// Arduino DHT11 pin
+
+// Briksdall settings
 #define BRIKSDALL_URL "192.168.1.33"		// Briksdall Url
 #define BRIKSDALL_PORT "81"					// Briksdall Port
 #define BRIKSDALL_HUB "/ws/hub.ashx"		// Briksdall Hub Entry Point
 #define BRIKSDALL_TIMEOUT 5000;				// Briksdall Connection Timeout (milliseconds)
 
+// Device settings
 #define DEVICE_ID "auno_01";				// Device ID -> change it for every arduino board!!!
+
+// Web Server settings
+#define PORT  "8080"						// using port 8080 by default
+
+#define BUFFER_SIZE 128
 
 #define POOL_INTERVAL 30;					// Query DHT11 interval (in minutes)
 
+#define DEBUG true;							// flag for debug
+
+
+// GLOBAL VARIABLES definition
 
 SoftwareSerial esp8266(RX_ESP, TX_ESP);		// Serial software for comunicating with esp8266
-SimpleDHT11 dht11;							// global interface for comunicating with dht11 sensor
+//SimpleDHT11 dht11;							// global interface for comunicating with dht11 sensor
+byte _temperature = 0;						// temperature value to send
+byte _humidity = 0;							// humidity value to send
 
-
-byte _temperature = 0;		// temperature value to send
-byte _humidity = 0;			// humidity value to send
 
 
 
 
 void setup()
 {
-	Serial.begin(9600);		// Log aulla seriale standard.
-	esp8266.begin(115200);	// comunicazione con esp8266
 
-	setupWiFi();			// setup WiFi
+	Serial.begin(9600);			// Start Serial (for debug)
+	esp8266.begin(115200);		// Start Esp8266 software serial (for communication)
+
+	startWebServer();			// setup WiFi
 
 }
+
+
 
 void loop()
 {
 
-	/* debug/echo seriale-esp */
+	///* debug/echo seriale-esp */
 	//while (esp8266.available()) {
 	//	Serial.print((char) esp8266.read());
 	//}
@@ -48,24 +75,271 @@ void loop()
 	//}
 
 	//delay(2000);
-	/* fine debug serial-esp */
+	///* fine debug serial-esp */
 
-	long pool_interval = POOL_INTERVAL;
-	pool_interval = pool_interval * 60 * 1000;
-	long millisec = millis();
 
-	if ((millisec % pool_interval) == 0) {
-		readDHT11();
 
-		String type = "T";
-		String value = String(_temperature);
-		bool sent = send2Briksdall(type, value);
+	//long pool_interval = POOL_INTERVAL;
+	//pool_interval = pool_interval * 60 * 1000;
+	//long millisec = millis();
+
+	//// sending data to briksdall...
+	//if ((millisec % pool_interval) == 0) {
+
+	//	Serial.println("DEBUG: Briksdall time -> send DHT11 data to briksdall ...");
+
+	//	readDHT11();
+
+	//	String type = "T";
+	//	String value = String(_temperature);
+	//	bool sent = send2Briksdall(type, value);
+	//}
+
+
+	// web server
+	if (esp8266.available() > 0) {
+		accept_client();
+	}
+}
+
+
+// function: startWebServer
+// Web Server configuration.
+// Param -> none.
+// Return value -> none.
+void startWebServer() {
+
+	String port = PORT;
+	long timeout = BRIKSDALL_TIMEOUT;
+
+	sendByEsp8266("ATE0", timeout);						// echo off
+	sendByEsp8266("AT+CIPMUX=1", timeout);				// Multiple connections setting												
+	sendByEsp8266("AT+CIPSERVER=1," + port, timeout);	// start web server and listen on port PORT
+}
+
+
+void accept_client() {
+
+	// new data available...
+	Serial.println("WEB SERVER. new request incoming ...");
+
+	String rawData = "";	// raw data from esp8266
+
+	// get data
+	while (esp8266.available() > 0) {
+
+		int iRead = esp8266.read();
+		char cRead = (char)iRead;
+
+		if (iRead == 13) {
+			//parse string....
+			rawData += "\0";
+			Serial.println("");
+		}
+		else {
+			Serial.print(cRead);
+			rawData += cRead;
+		}
+
+		delay(10);
+	}
+	esp8266.flush();
+	Serial.flush();
+
+	// Parse data...
+	int index = rawData.indexOf("+IPD,");		// +IPD,3,329:GET /favicon.ico HTTP/1.1
+
+	if (index > 0) {
+		String str_id = rawData.substring(index + 5, index + 5 + 1);		// request client id
+		
+		index = index + 6;
+
+		int get_index = rawData.indexOf("GET ", index);
+		index = rawData.indexOf(" ", get_index);
+		String resource = rawData.substring(get_index + 4, index);			// resource requested
+
+		Serial.println("WEB SERVER: GET Found. Requested: " + resource);
+		
+		if (resource == "/") {
+			// requested "/", so it's a classic browser request
+			resolve_homepage(str_id);
+		}
+		else {
+			// requested a particular resource
+			resolve_resource(str_id, resource);
+		}
+	}
+	else {
+		Serial.println("WEB SERVER: IPD NOT Found. Discard...");
 	}
 
+	return;
+}
+
+// function: resolve_homepage
+// Response in html format.
+// Param -> client id.
+// Return value -> none.
+void resolve_homepage(String ch_id) {
+
+	Serial.println("WEB SERVER. Building html response.");
+
+	unsigned long time = millis() / 1000;
+
+	// make html response
+	String header = "";
+	String content = "";
+
+	content += "<html>";
+	content += "	<head>";
+	content += "	</head>";
+	content += "	<body>";
+	content += "		<h4>Arduino Active time: " + String(time) + " sec.</h4>";
+	content += "	</body>";
+	content += "</html>";
+	content += "\r\n\r\n";
+
+	header += "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\nRefresh: 20\r\n";
+	header += "Content-Length:";
+	header += (int)(content.length());
+	header += "\r\n\r\n";
+
+	// sending data on esp8266
+	String datarcv = "";
+	long timeout = BRIKSDALL_TIMEOUT;
+	String data2send = "AT+CIPSEND=" + ch_id + "," + String(header.length() + content.length());
+
+	datarcv = sendByEsp8266(data2send, timeout);
+	datarcv = sendByEsp8266(header + content, timeout);
+
+	bool operationOK = (datarcv.length() > 0);
+	
+	// close the connection
+	data2send = "AT+CIPCLOSE=" + ch_id;
+	sendByEsp8266(data2send, timeout);
+
+	return;
+}
+// function: resolve_resource
+// Response in json format.
+// Param -> client id.
+// Param -> requested resource.
+// Return value -> none.
+void resolve_resource(String ch_id, String resource) {
+
+	Serial.println("WEB SERVER. Building json response.");
+
+	unsigned long time = millis() / 1000;
+
+	// make html response
+	String header = "";
+	String content = "";
+
+	content += "{";
+	content += "time: " + String(time);
+	content += "}";
+	content += "\r\n\r\n";
+
+	header += "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\nRefresh: 20\r\n";
+	header += "Content-Length:";
+	header += (int)(content.length());
+	header += "\r\n\r\n";
+
+	// sending data on esp8266
+	String datarcv = "";
+	long timeout = BRIKSDALL_TIMEOUT;
+	String data2send = "AT+CIPSEND=" + ch_id + "," + String(header.length() + content.length());
+
+	datarcv = sendByEsp8266(data2send, timeout);
+	datarcv = sendByEsp8266(header + content, timeout);
+
+	bool operationOK = (datarcv.length() > 0);
+
+	// close the connection
+	data2send = "AT+CIPCLOSE=" + ch_id;
+	sendByEsp8266(data2send, timeout);
+
+	return;
+
+}
+
+// function: sendByEsp8266
+// Send data on the air by Esp8266 and wait for a response...
+// Param -> rawdata : data (raw) to send
+// Param -> timeout : timeout for the response
+// Return value -> data received as a response
+String sendByEsp8266(String rawdata, long timeout) {
+	String datarcv = "";
+	bool debug = DEBUG;
+
+	// Sending to esp8266..
+	if (debug) {
+		Serial.print("DEBUG. Send -> ");
+		Serial.println(rawdata);
+	}
+	esp8266.println(rawdata);
+
+	// Handling the response...
+	if (debug) Serial.print("DEBUG. Receive -> ");
+	long time = millis();
+	while ((time + timeout) > millis()) {
+		int raw_char = esp8266.read();
+		char c = (char)raw_char;
+		if (raw_char == 13) {
+			datarcv += "\0";
+			if (debug) Serial.println("");
+			break;
+		}
+		else {
+			if (debug) Serial.print(c);
+			datarcv = datarcv + c;
+		}
+
+		delay(10);
+	}
+
+	esp8266.flush();
+	Serial.flush();
+
+	return datarcv;
 }
 
 
 
+
+
+
+
+
+
+
+// function: send2Briksdall
+// Data sending process (with retries if something goes wrong).
+// Param -> type : "type" value
+// Param -> value : "value" value
+// Return value -> true if trasmission completes successfully, false otherwise.
+bool send2Briksdall(String type, String value) {
+	//String timestamp = String(millis());
+	String timestamp = "0";	// no timestamp because Arduino doesn't know what time is it...
+
+	String logmessage = "ESP8266: Sending Data, attempt ";
+	bool transmissionOK = false;
+	int i = 1;
+	do {
+		Serial.println(logmessage + String(i));
+		transmissionOK = httppost(timestamp, type, value);
+		i++;
+	} while ((!transmissionOK) && (i < 11));
+
+	if (transmissionOK) {
+		Serial.println("ESP8266: Operation completed.");
+	}
+	else {
+		Serial.println("ESP8266: Warning Data NOT sent.");
+	}
+
+	return transmissionOK;
+}
 
 
 // function: readDHT11
@@ -87,11 +361,11 @@ void readDHT11() {
 		byte humidity = 0;
 		byte data[40] = { 0 };
 
-		if (dht11.read(pinDHT11, &temperature, &humidity, data)) {
-			Serial.print("DHT11: Read failed.");
-			temperatures[i] = 0;
-			humidities[i] = 0;
-		}
+		//if (dht11.read(pinDHT11, &temperature, &humidity, data)) {
+		//	Serial.print("DHT11: Read failed.");
+		//	temperatures[i] = 0;
+		//	humidities[i] = 0;
+		//}
 
 		temperatures[i] = temperature;
 		humidities[i] = humidity;
@@ -126,51 +400,6 @@ void readDHT11() {
 	return;
 }
 
-
-// function: send2Briksdall
-// Data sending process (with retries if something goes wrong).
-// Param -> type : "type" value
-// Param -> value : "value" value
-// Return value -> true if trasmission completes successfully, false otherwise.
-bool send2Briksdall(String type, String value) {
-	//String timestamp = String(millis());
-	String timestamp = "0";	// no timestamp because Arduino doesn't know what time is it...
-
-	String logmessage = "ESP8266: Sending Data, attempt ";
-	bool transmissionOK = false;
-	int i = 1;
-	do {
-		Serial.println(logmessage + String(i));
-		transmissionOK = httppost(timestamp, type, value);
-		i++;
-	} while ((!transmissionOK) && (i < 11));
-
-	if (transmissionOK) {
-		Serial.println("ESP8266: Operation completed.");
-	}
-	else {
-		Serial.println("ESP8266: Warning Data NOT sent.");
-	}
-
-	return transmissionOK;
-}
-
-// function: setupWiFi
-// WiFi configuration.
-// Param -> none.
-// Return value -> none.
-void setupWiFi() {
-	// Impostazioni network Esp8266 (WiFi + Lan)
-	// WIFI_SSID "Telecom-xxxxxxx" -> non serve perche impostato di default (attraverso AT+CWJAP_DEF)
-	// WIFI_PSW  -> non serve perche impostato di default (attraverso AT+CWJAP_DEF)
-	// IPADDR "192.168.1.100" -> non serve perche impostato di default (attraverso AT+CIPSTA_DEF)
-	// NETMASK "255.255.255.0" -> non serve perche impostato di default (attraverso AT+CIPSTA_DEF)
-	// GATEWAY "192.168.1.1" -> non serve perche impostato di default (attraverso AT+CIPSTA_DEF)
-
-	long timeout = BRIKSDALL_TIMEOUT;
-	sendByEsp8266("ATE0", timeout);				// echo off
-	sendByEsp8266("AT+CIPMUX=1", timeout);		// configura per connessioni multiple
-}
 
 // function: httppost
 // Main function for send data to Briksdall via an http post request.
@@ -264,27 +493,6 @@ bool httppost(String timestamp, String type, String value) {
 	return true;
 }
 
-// function: sendByEsp8266
-// Send data on the air by Esp8266 and wait for a response...
-// Param -> rawdata : data (raw) to send
-// Param -> timeout : timeout for the response
-// Return value -> data received as a response
-String sendByEsp8266(String rawdata, long timeout) {
-	String datarcv = "";
-
-	// Sending to esp8266...
-	esp8266.println(rawdata);
-
-	// Handling the response...
-	long time = millis();
-	while ((time + timeout) > millis()) {
-		while (esp8266.available() > 0) {
-			datarcv = datarcv + (char)esp8266.read();
-		}
-	}
-
-	return datarcv;
-}
 
 // function: received_ok
 // Find an "ok" response inside a message. The "ok" is identified by a "OK", "CONNECT", ">" strings.
