@@ -115,10 +115,13 @@ void startWebServer() {
 	sendByEsp8266("ATE0", timeout);						// echo off
 	sendByEsp8266("AT+CIPMUX=1", timeout);				// Multiple connections setting												
 	sendByEsp8266("AT+CIPSERVER=1," + port, timeout);	// start web server and listen on port PORT
+	
+	Serial.println("\nStarting Arduino web server on port " + port);
 }
 
 
 void accept_client() {
+	bool debug = DEBUG;
 
 	// new data available...
 	Serial.println("WEB SERVER. new request incoming ...");
@@ -134,45 +137,57 @@ void accept_client() {
 		if (iRead == 13) {
 			//parse string....
 			rawData += "\0";
-			Serial.println("");
+			if (debug) {
+				Serial.print("DEBUG. Received -> ");
+				Serial.println(rawData);
+			}
 		}
 		else {
-			Serial.print(cRead);
 			rawData += cRead;
 		}
 
 		delay(10);
 	}
+
 	esp8266.flush();
 	Serial.flush();
 
 	// Parse data...
 	int index = rawData.indexOf("+IPD,");		// +IPD,3,329:GET /favicon.ico HTTP/1.1
 
-	if (index > 0) {
-		String str_id = rawData.substring(index + 5, index + 5 + 1);		// request client id
-		
-		index = index + 6;
+	if (index < 1) {
+		Serial.println("WEB SERVER: Error reading data (IPD NOT Found). Discard...");
+		Serial.flush();
+		return;
+	}
 
-		int get_index = rawData.indexOf("GET ", index);
-		index = rawData.indexOf(" ", get_index);
-		String resource = rawData.substring(get_index + 4, index);			// resource requested
+	index += 5;
+	String str_id = rawData.substring(index, index + 1);		// request client id
 
-		Serial.println("WEB SERVER: GET Found. Requested: " + resource);
-		
-		if (resource == "/") {
-			// requested "/", so it's a classic browser request
-			resolve_homepage(str_id);
-		}
-		else {
-			// requested a particular resource
-			resolve_resource(str_id, resource);
-		}
+	index = index + 6;
+	int get_index = rawData.indexOf("GET ", index);
+	
+	if (get_index < 1) {
+		Serial.println("WEB SERVER: Error reading data (GET not found). Discard...");
+		Serial.flush();
+		return;
+	}
+	
+	get_index += 4;
+	index = rawData.indexOf(" ", get_index);
+	String resource = rawData.substring(get_index, index);			// resource requested
+
+	Serial.println("WEB SERVER: GET Found. Requested: " + resource);
+
+	if (resource.equals("/")) {
+		// requested "/", so it's a classic browser request
+		resolve_homepage(str_id);
 	}
 	else {
-		Serial.println("WEB SERVER: IPD NOT Found. Discard...");
+		// requested a particular resource
+		resolve_resource(str_id, resource);
 	}
-
+	
 	return;
 }
 
