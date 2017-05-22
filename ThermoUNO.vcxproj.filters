@@ -13,9 +13,18 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="3rd Party">
+      <UniqueIdentifier>{1da754ce-b5ef-4f33-8d8c-8fd74dee4b85}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="ThermoUNO.ino" />
+    <None Include="DHT11.pdf">
+      <Filter>3rd Party</Filter>
+    </None>
+    <None Include="..\libraries\SimpleDHT.zip">
+      <Filter>3rd Party</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="__vm\.ThermoUNO.vsarduino.h">

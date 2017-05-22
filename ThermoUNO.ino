@@ -9,7 +9,7 @@
 // LIBRARIES definition
 
 #include <SoftwareSerial.h>
-//#include <SimpleDHT.h>
+#include <SimpleDHT.h>
 
 
 
@@ -42,7 +42,7 @@
 // GLOBAL VARIABLES definition
 
 SoftwareSerial esp8266(RX_ESP, TX_ESP);		// Serial software for comunicating with esp8266
-//SimpleDHT11 dht11;							// global interface for comunicating with dht11 sensor
+SimpleDHT11 dht11;							// global interface for comunicating with dht11 sensor
 byte _temperature = 0;						// temperature value to send
 byte _humidity = 0;							// humidity value to send
 
@@ -199,7 +199,8 @@ void resolve_homepage(String ch_id) {
 
 	Serial.println("WEB SERVER. Building html response.");
 
-	unsigned long time = millis() / 1000;
+	// reading from dht11
+	readDHT11();
 
 	// make html response
 	String header = "";
@@ -209,7 +210,8 @@ void resolve_homepage(String ch_id) {
 	content += "	<head>";
 	content += "	</head>";
 	content += "	<body>";
-	content += "		<h4>Arduino Active time: " + String(time) + " sec.</h4>";
+	content += "		<h4>Temperature: " + String(_temperature) + "</h4>";
+	content += "		<h4>Humidity: " + String(_humidity) + "</h4>";
 	content += "	</body>";
 	content += "</html>";
 	content += "\r\n\r\n";
@@ -320,6 +322,65 @@ String sendByEsp8266(String rawdata, long timeout) {
 }
 
 
+// function: readDHT11
+// Read data from DHT11. Fill global variables...
+// Param -> none.
+// Return value -> none.
+void readDHT11() {
+
+	int pinDHT11 = RXTX_DHT11;
+
+	byte temperatures[5] = { 0,0,0,0,0 };		// Temperature values
+	byte humidities[5] = { 0,0,0,0,0 };			// Humidity values
+	byte position = 0;
+
+	// read with raw sample data.
+	for (int i = 0; i < 5; i++) {
+
+		byte temperature = 0;
+		byte humidity = 0;
+		byte data[40] = { 0 };
+
+		if (dht11.read(pinDHT11, &temperature, &humidity, data)) {
+			Serial.print("DHT11: Read failed.");
+			temperatures[i] = 0;
+			humidities[i] = 0;
+		}
+
+		temperatures[i] = temperature;
+		humidities[i] = humidity;
+
+		delay(1000);	// DHT11 sampling rate is 1HZ.
+	}
+
+
+
+	// average of values 
+	int sumT = 0;
+	String logT = "";
+	int sumH = 0;
+	String logH = "";
+
+	for (int i = 0; i < 5; i++) {
+		sumT += temperatures[i];
+		sumH += humidities[i];
+
+		logT += String(temperatures[i]);
+		logT += " ";
+		logH += String(humidities[i]);
+		logH += " ";
+	}
+
+	_temperature = sumT / 5;
+	_humidity = sumH / 5;
+
+	Serial.println("DHT11: Temperature values [ " + logT + "] - Av: " + String(_temperature));
+	Serial.println("DHT11: Humidity values [ " + logH + "] - Av: " + String(_humidity));
+	Serial.flush();
+
+	return;
+}
+
 
 
 
@@ -356,64 +417,6 @@ bool send2Briksdall(String type, String value) {
 	return transmissionOK;
 }
 
-
-// function: readDHT11
-// Read data from DHT11. Fill global variables...
-// Param -> none.
-// Return value -> none.
-void readDHT11() {
-		
-	int pinDHT11 = RXTX_DHT11;
-
-	byte temperatures[5] = { 0,0,0,0,0 };		// Temperature values
-	byte humidities[5] = { 0,0,0,0,0 };			// Humidity values
-	byte position = 0;
-	
-	// read with raw sample data.
-	for (int i = 0; i < 5; i++) {
-		
-		byte temperature = 0;
-		byte humidity = 0;
-		byte data[40] = { 0 };
-
-		//if (dht11.read(pinDHT11, &temperature, &humidity, data)) {
-		//	Serial.print("DHT11: Read failed.");
-		//	temperatures[i] = 0;
-		//	humidities[i] = 0;
-		//}
-
-		temperatures[i] = temperature;
-		humidities[i] = humidity;
-
-		delay(1000);	// DHT11 sampling rate is 1HZ.
-	}
-
-
-
-	// average of values 
-	int sumT = 0;
-	String logT = "";
-	int sumH = 0;
-	String logH = "";
-
-	for (int i = 0; i < 5; i++) {
-		sumT += temperatures[i];
-		sumH += humidities[i];
-
-		logT += String(temperatures[i]);
-		logT += " ";
-		logH += String(humidities[i]);
-		logH += " ";
-	}
-
-	_temperature = sumT / 5;
-	_humidity = sumH / 5;
-
-	Serial.println("DHT11: Temperature values [ " + logT + "] - Av: " + String(_temperature));
-	Serial.println("DHT11: Humidity values [ " + logH + "] - Av: " + String(_humidity));
-
-	return;
-}
 
 
 // function: httppost
