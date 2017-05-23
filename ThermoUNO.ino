@@ -205,11 +205,13 @@ void resolve_homepage(String ch_id) {
 	// make html response
 	String header = "";
 	String content = "";
+	String deviceid = DEVICE_ID;
 
 	content += "<html>";
 	content += "	<head>";
 	content += "	</head>";
 	content += "	<body>";
+	content += "		<h3>" + deviceid + "</h3>";
 	content += "		<h4>Temperature: " + String(_temperature) + "</h4>";
 	content += "		<h4>Humidity: " + String(_humidity) + "</h4>";
 	content += "	</body>";
