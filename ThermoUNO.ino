@@ -185,7 +185,7 @@ void accept_client() {
 	}
 	else {
 		// requested a particular resource
-		resolve_resource(str_id, resource);
+		resolve_resource(str_id, resource.substring(1));
 	}
 	
 	return;
@@ -202,19 +202,22 @@ void resolve_homepage(String ch_id) {
 	// reading from dht11
 	readDHT11();
 
-	// make html response
+	// variables
 	String header = "";
 	String content = "";
 	String deviceid = DEVICE_ID;
+	String lifetime = getLifeTime();
 
+	// make html response
 	content += "<html>";
 	content += "<head>";
 	content += "<title>" + deviceid + "</title>";
 	content += "</head>";
 	content += "<body>";
-	content += "<h3>" + deviceid + "</h3>";
+	content += "<h3>Arduino: " + deviceid + "</h3>";
 	content += "<h4>Temperature: " + String(_temperature) + "</h4>";
 	content += "<h4>Humidity: " + String(_humidity) + "</h4>";
+	content += "<h4>Life time: " + lifetime + "</h4>";
 	content += "</body>";
 	content += "</html>";
 	content += "\r\n\r\n";
@@ -248,16 +251,18 @@ void resolve_homepage(String ch_id) {
 // Return value -> none.
 void resolve_resource(String ch_id, String resource) {
 
-	Serial.println("WEB SERVER. Building json response.");
-
-	unsigned long time = millis() / 1000;
+	Serial.println("WEB SERVER. Building json response (resource: " + resource + ").");
+	
+	// reading from dht11
+	readDHT11();
 
 	// make html response
 	String header = "";
 	String content = "";
+	String resource_value = getResourceValue(resource);
 
 	content += "{";
-	content += "time: " + String(time);
+	content += resource_value;
 	content += "}";
 	content += "\r\n\r\n";
 
@@ -272,7 +277,8 @@ void resolve_resource(String ch_id, String resource) {
 	String data2send = "AT+CIPSEND=" + ch_id + "," + String(header.length() + content.length());
 
 	datarcv = sendByEsp8266(data2send, timeout);
-	datarcv = sendByEsp8266(header + content, timeout);
+	datarcv = sendByEsp8266(header, timeout);
+	datarcv = sendByEsp8266(content, timeout);
 
 	bool operationOK = (datarcv.length() > 0);
 
@@ -283,6 +289,48 @@ void resolve_resource(String ch_id, String resource) {
 	return;
 
 }
+// function: getResourceValue
+// Get the value of a resource.
+// Param -> resource name.
+// Return value -> resource value.
+String getResourceValue(String resource_name) {
+
+	String content = "";
+
+	if (resource_name == "T") {
+		content = "\"TEMPERATURE\": \"" + String(_temperature) + "\"";
+	}
+	else if (resource_name == "H") {
+		content = "\"HUMIDITY\": \"" + String(_humidity) + "\"";
+	}
+	else if (resource_name == "LT") {
+		String lifetime = getLifeTime();
+		content = "\"LIFETIME\": \"" + lifetime + "\"";
+	}
+	else if (resource_name == "ALL") {
+		String lifetime = getLifeTime();
+		content += "\"TEMPERATURE\": \"" + String(_temperature) + "\",";
+		content += "\"HUMIDITY\": \"" + String(_humidity) + "\",";
+		content += "\"LIFETIME\": \"" + lifetime + "\"";
+	}
+
+	return content;
+}
+// function: getLifeTime
+// Get the life time ("mm:ss" format).
+// Param -> none.
+// Return value -> life time a string format.
+String getLifeTime() {
+
+	unsigned long msec = millis();
+	long minutes = (msec / 1000) / 60;
+	long sec = (msec / 1000) % 60;
+
+	String returnvalue = String(minutes) + ":" + String(sec);
+
+	return returnvalue;
+}
+
 
 // function: sendByEsp8266
 // Send data on the air by Esp8266 and wait for a response...
@@ -384,6 +432,12 @@ void readDHT11() {
 
 	return;
 }
+
+
+
+
+
+
 
 
 
