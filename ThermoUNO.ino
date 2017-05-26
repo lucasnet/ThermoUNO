@@ -208,13 +208,14 @@ void resolve_homepage(String ch_id) {
 	String deviceid = DEVICE_ID;
 
 	content += "<html>";
-	content += "	<head>";
-	content += "	</head>";
-	content += "	<body>";
-	content += "		<h3>" + deviceid + "</h3>";
-	content += "		<h4>Temperature: " + String(_temperature) + "</h4>";
-	content += "		<h4>Humidity: " + String(_humidity) + "</h4>";
-	content += "	</body>";
+	content += "<head>";
+	content += "<title>" + deviceid + "</title>";
+	content += "</head>";
+	content += "<body>";
+	content += "<h3>" + deviceid + "</h3>";
+	content += "<h4>Temperature: " + String(_temperature) + "</h4>";
+	content += "<h4>Humidity: " + String(_humidity) + "</h4>";
+	content += "</body>";
 	content += "</html>";
 	content += "\r\n\r\n";
 
@@ -229,7 +230,8 @@ void resolve_homepage(String ch_id) {
 	String data2send = "AT+CIPSEND=" + ch_id + "," + String(header.length() + content.length());
 
 	datarcv = sendByEsp8266(data2send, timeout);
-	datarcv = sendByEsp8266(header + content, timeout);
+	datarcv = sendByEsp8266(header, timeout);
+	datarcv = sendByEsp8266(content, timeout);
 
 	bool operationOK = (datarcv.length() > 0);
 	
