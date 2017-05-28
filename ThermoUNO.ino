@@ -168,6 +168,7 @@ void accept_client() {
 	int get_index = rawData.indexOf("GET ", index);
 	
 	if (get_index < 1) {
+		resolve_error(str_id);
 		Serial.println("WEB SERVER: Error reading data (GET not found). Discard...");
 		Serial.flush();
 		return;
@@ -289,6 +290,55 @@ void resolve_resource(String ch_id, String resource) {
 	return;
 
 }
+// function: resolve_error
+// Error response (html code: 503) in html format.
+// Param -> client id.
+// Return value -> none.
+void resolve_error(String ch_id) {
+	
+	String deviceid = DEVICE_ID;
+
+	Serial.println("WEB SERVER. Building error response.");
+
+	// make html response
+	String header = "";
+	String content = "";
+
+	content += "<html>";
+	content += "<head>";
+	content += "<title>" + deviceid + "</title>";
+	content += "</head>";
+	content += "<body>";
+	content += "<h3>Arduino: " + deviceid + "</h3>";
+	content += "<h4>Error reading data from socket</h4>";
+	content += "</body>";
+	content += "</html>";
+	content += "\r\n\r\n";
+
+	header += "HTTP/1.1 503 Service Temporarily Unavailable\r\nRetry-After: 30\r\n";
+	header += "Content-Length:";
+	header += (int)(content.length());
+	header += "\r\n\r\n";
+
+	// sending data on esp8266
+	String datarcv = "";
+	long timeout = BRIKSDALL_TIMEOUT;
+	String data2send = "AT+CIPSEND=" + ch_id + "," + String(header.length() + content.length());
+
+	datarcv = sendByEsp8266(data2send, timeout);
+	datarcv = sendByEsp8266(header, timeout);
+	datarcv = sendByEsp8266(content, timeout);
+
+	bool operationOK = (datarcv.length() > 0);
+
+	// close the connection
+	data2send = "AT+CIPCLOSE=" + ch_id;
+	sendByEsp8266(data2send, timeout);
+
+	return;
+
+}
+
 // function: getResourceValue
 // Get the value of a resource.
 // Param -> resource name.
