@@ -11,91 +11,53 @@
 #include <SoftwareSerial.h>
 #include <SimpleDHT.h>
 
-
-
 // CONSTANTS definition
 
 // Arduino PIN settings
 #define RX_ESP 10							// Arduino RX pin (from Esp TX)
 #define TX_ESP 11							// Arduino TX pin (to Esp RX)
 #define RXTX_DHT11 2						// Arduino DHT11 pin
-
 // Briksdall settings
 #define BRIKSDALL_URL "192.168.1.33"		// Briksdall Url
 #define BRIKSDALL_PORT "81"					// Briksdall Port
 #define BRIKSDALL_HUB "/ws/hub.ashx"		// Briksdall Hub Entry Point
 #define BRIKSDALL_TIMEOUT 5000;				// Briksdall Connection Timeout (milliseconds)
-
+#define POOL_INTERVAL 1;					// Briksdall send data interval (in minutes)
 // Device settings
 #define DEVICE_ID "auno_01";				// Device ID -> change it for every arduino board!!!
-
 // Web Server settings
 #define PORT  "8080"						// using port 8080 by default
-
-#define BUFFER_SIZE 128
-
-#define POOL_INTERVAL 30;					// Query DHT11 interval (in minutes)
-
 #define DEBUG true;							// flag for debug
 
-
 // GLOBAL VARIABLES definition
-
 SoftwareSerial esp8266(RX_ESP, TX_ESP);		// Serial software for comunicating with esp8266
 SimpleDHT11 dht11;							// global interface for comunicating with dht11 sensor
 byte _temperature = 0;						// temperature value to send
 byte _humidity = 0;							// humidity value to send
-
-
-
+long _pool_interval = 0;					// Briksdall send data interval (in milliseconds)
 
 
 void setup()
 {
+	Serial.begin(9600);								// Start Serial (for debug)
+	esp8266.begin(115200);							// Start Esp8266 software serial (for communication)
 
-	Serial.begin(9600);			// Start Serial (for debug)
-	esp8266.begin(115200);		// Start Esp8266 software serial (for communication)
+	startWebServer();								// setup web server
 
-	startWebServer();			// setup WiFi
-
+	_pool_interval = POOL_INTERVAL;					// setup briksdall pool interval...
+	_pool_interval = _pool_interval * 60 * 1000;
 }
-
 
 
 void loop()
 {
-
-	///* debug/echo seriale-esp */
-	//while (esp8266.available()) {
-	//	Serial.print((char) esp8266.read());
-	//}
-
-	//while (Serial.available()) {
-	//	esp8266.write(Serial.read());
-	//}
-
-	//delay(2000);
-	///* fine debug serial-esp */
-
-
-
-	//long pool_interval = POOL_INTERVAL;
-	//pool_interval = pool_interval * 60 * 1000;
-	//long millisec = millis();
-
-	//// sending data to briksdall...
-	//if ((millisec % pool_interval) == 0) {
-
-	//	Serial.println("DEBUG: Briksdall time -> send DHT11 data to briksdall ...");
-
-	//	readDHT11();
-
-	//	String type = "T";
-	//	String value = String(_temperature);
-	//	bool sent = send2Briksdall(type, value);
-	//}
-
-
+	long millisec = millis();
+	// sending data to briksdall...
+	if ((millisec % _pool_interval) == 0) {
+		Serial.println("BRIKSDALL: send DHT11 data ...");
+		readDHT11();
+		bool sent = send2Briksdall("T", String(_temperature));
+	}
 	// web server
 	if (esp8266.available() > 0) {
 		accept_client();
@@ -119,7 +81,6 @@ void startWebServer() {
 	Serial.println("\nStarting Arduino web server on port " + port);
 }
 
-
 void accept_client() {
 	bool debug = DEBUG;
 
@@ -130,10 +91,8 @@ void accept_client() {
 
 	// get data
 	while (esp8266.available() > 0) {
-
 		int iRead = esp8266.read();
 		char cRead = (char)iRead;
-
 		if (iRead == 13) {
 			//parse string....
 			rawData += "\0";
@@ -145,41 +104,31 @@ void accept_client() {
 		else {
 			rawData += cRead;
 		}
-
 		delay(10);
 	}
-
 	esp8266.flush();
 	Serial.flush();
-
 	// Parse data...
 	int index = rawData.indexOf("+IPD,");		// +IPD,3,329:GET /favicon.ico HTTP/1.1
-
 	if (index < 1) {
 		Serial.println("WEB SERVER: Error reading data (IPD NOT Found). Discard...");
 		Serial.flush();
 		return;
 	}
-
 	index += 5;
 	String str_id = rawData.substring(index, index + 1);		// request client id
-
 	index = index + 6;
 	int get_index = rawData.indexOf("GET ", index);
-	
 	if (get_index < 1) {
 		resolve_error(str_id);
 		Serial.println("WEB SERVER: Error reading data (GET not found). Discard...");
 		Serial.flush();
 		return;
 	}
-	
 	get_index += 4;
 	index = rawData.indexOf(" ", get_index);
 	String resource = rawData.substring(get_index, index);			// resource requested
-
 	Serial.println("WEB SERVER: GET Found. Requested: " + resource);
-
 	if (resource.equals("/")) {
 		// requested "/", so it's a classic browser request
 		resolve_homepage(str_id);
@@ -223,10 +172,7 @@ void resolve_homepage(String ch_id) {
 	content += "</html>";
 	content += "\r\n\r\n";
 
-	header += "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\nRefresh: 20\r\n";
-	header += "Content-Length:";
-	header += (int)(content.length());
-	header += "\r\n\r\n";
+	header = header_ok((int)(content.length()));
 
 	// sending data on esp8266
 	String datarcv = "";
@@ -267,10 +213,7 @@ void resolve_resource(String ch_id, String resource) {
 	content += "}";
 	content += "\r\n\r\n";
 
-	header += "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\nRefresh: 20\r\n";
-	header += "Content-Length:";
-	header += (int)(content.length());
-	header += "\r\n\r\n";
+	header = header_ok((int)(content.length()));
 
 	// sending data on esp8266
 	String datarcv = "";
@@ -337,6 +280,17 @@ void resolve_error(String ch_id) {
 
 	return;
 
+}
+
+String header_ok(int content_length) {
+	String header = "";
+
+	header += "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\nRefresh: 20\r\n";
+	header += "Content-Length:";
+	header += (String)(content_length);
+	header += "\r\n\r\n";
+
+	return header;
 }
 
 // function: getResourceValue
@@ -483,49 +437,25 @@ void readDHT11() {
 	return;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // function: send2Briksdall
 // Data sending process (with retries if something goes wrong).
 // Param -> type : "type" value
 // Param -> value : "value" value
 // Return value -> true if trasmission completes successfully, false otherwise.
 bool send2Briksdall(String type, String value) {
-	//String timestamp = String(millis());
-	String timestamp = "0";	// no timestamp because Arduino doesn't know what time is it...
+	String timestamp = getLifeTime();
 
-	String logmessage = "ESP8266: Sending Data, attempt ";
+	String logmessage = "BRIKSDALL: Sending Data, attempt ";
 	bool transmissionOK = false;
 	int i = 1;
 	do {
 		Serial.println(logmessage + String(i));
-		transmissionOK = httppost(timestamp, type, value);
+		transmissionOK = post2briksdall(timestamp, type, value);
 		i++;
 	} while ((!transmissionOK) && (i < 11));
 
-	if (transmissionOK) {
-		Serial.println("ESP8266: Operation completed.");
-	}
-	else {
-		Serial.println("ESP8266: Warning Data NOT sent.");
-	}
-
 	return transmissionOK;
 }
-
-
 
 // function: httppost
 // Main function for send data to Briksdall via an http post request.
@@ -533,7 +463,7 @@ bool send2Briksdall(String type, String value) {
 // Param -> type : "type" value
 // Param -> value : "value" value
 // Return value -> always true
-bool httppost(String timestamp, String type, String value) {
+bool post2briksdall(String timestamp, String type, String value) {
 
 	String server = BRIKSDALL_URL;
 	String port = BRIKSDALL_PORT;
@@ -545,24 +475,17 @@ bool httppost(String timestamp, String type, String value) {
 	String data2send = "";
 
 	// Connessione...
-	Serial.println("ESP8266: Connecting to: " + server + " on port " + port + " ...");
-	data2send = "AT+CIPSTART=1,\"TCP\",\"" + server + "\"," + port;
+	Serial.println("BRIKSDALL: Connecting to: " + server + " on port " + port + " ...");
+	data2send = "AT+CIPSTART=4,\"TCP\",\"" + server + "\"," + port;
 	datarcv = sendByEsp8266(data2send, timeout);
-	Serial.println("ESP8266: Data Received: " + datarcv);
-	// fine connessione
-
 	// Stato Connessione...
 	operationOK = received_ok(datarcv);
 	if (!operationOK) {
-		Serial.println("ESP8266: TCP connection KO");
-		data2send = "AT+CIPCLOSE=1";
-		sendByEsp8266(data2send, timeout);
+		Serial.println("BRIKSDALL: TCP connection KO");
+		closing_connection(timeout);
 		return false;
 	}
-	Serial.println("ESP8266: Connected to " + server + " on port " + port + ".");
-	// Fine stato connessione
-
-
+	Serial.println("BRIKSDALL: Connected to " + server + " on port " + port + ".");
 	// invio dati step 1 lunghezza ...
 	String uri = ws + "/" + device_id;
 	String rawdata = "timestamp=" + timestamp + "&" + type + "=" + value;
@@ -573,52 +496,30 @@ bool httppost(String timestamp, String type, String value) {
 		"Content-Length: " + String(rawdata.length()) + "\r\n" +
 		"Content-Type: application/x-www-form-urlencoded\r\n" +
 		"\r\n" + rawdata;
-	Serial.println("ESP8266: Sending data (" + String(rawdata.length()) + "/" + String(postRequest.length()) + ") to: " + uri + " ...");
-	data2send = "AT+CIPSEND=1," + String(postRequest.length());
+	data2send = "AT+CIPSEND=4," + String(postRequest.length());
 	datarcv = sendByEsp8266(data2send, timeout);
-	Serial.println("ESP8266: Data Received: " + datarcv);
-	// fine invio dati step 1 lunghezza ...
-
-
-	// controllo invio lunghezza dati
 	operationOK = received_ok(datarcv);
 	if (!operationOK) {
-		Serial.println("ESP8266: Not found \">\" -> closing connection.");
-		data2send = "AT+CIPCLOSE=1";
-		sendByEsp8266(data2send, timeout);
+		Serial.println("BRIKSDALL: Not found \">\" -> closing connection.");
+		closing_connection(timeout);
 		return false;
 	}
-	Serial.println("ESP8266: Sent length of " + String(postRequest.length()) + " bytes.");
-	// fine controllo invio lunghezza dati
-
-
 	// invio dati step 2 dati veri e propri ...
-	Serial.println("ESP8266: Post data: " + postRequest + " (" + String(postRequest.length()) + ")");
+	Serial.println("BRIKSDALL: Post data: " + postRequest + " (" + String(postRequest.length()) + ")");
 	datarcv = sendByEsp8266(postRequest, timeout);
-	Serial.println("ESP8266: Data Received: " + datarcv);
-	// fine invio dati step 2 dati veri e propri ...
-
-
 	// controllo invio dati
 	operationOK = (datarcv.length() > 0);
 	if (!operationOK) {
-		Serial.println("ESP8266: Send error on postrequest -> closing connection.");
-		data2send = "AT+CIPCLOSE=1";
-		sendByEsp8266(data2send, timeout);
+		Serial.println("BRIKSDALL: Send error on postrequest -> closing connection.");
+		closing_connection(timeout);
 		return false;
 	}
-	Serial.println("ESP8266: Sent ok.");
-	// fine controllo invio dati
-
-
 	// close the connection
-	data2send = "AT+CIPCLOSE=1";
-	sendByEsp8266(data2send, timeout);
-	Serial.println("ESP8266: Connection closed, transmission ok.");
+	closing_connection(timeout);
+	Serial.println("BRIKSDALL: Connection closed, transmission ok.");
 
 	return true;
 }
-
 
 // function: received_ok
 // Find an "ok" response inside a message. The "ok" is identified by a "OK", "CONNECT", ">" strings.
@@ -629,13 +530,9 @@ bool received_ok(String rawdata) {
 	const int len = 3;
 	String ok_messages[len] = { "OK", "CONNECT", ">" };
 
-	// int len = sizeof(ok_messages) / sizeof(String);	// lunghezza dell'array
-
 	for (int i = 0; i < len; i++) {
-
 		String element = ok_messages[i];
 		retval = (rawdata.indexOf(element) > 0);
-
 		if (retval)
 			break;
 	}
@@ -643,3 +540,9 @@ bool received_ok(String rawdata) {
 	return retval;
 }
 
+void closing_connection(int timeout) {
+	String data2send = "AT+CIPCLOSE=4";
+	sendByEsp8266(data2send, timeout);
+
+	return;
+}
