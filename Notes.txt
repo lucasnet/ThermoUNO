@@ -1,0 +1,266 @@
+// function: startWebServer
+// Web Server configuration.
+// Param -> none.
+// Return value -> none.
+void startWebServer() {
+
+	String port = PORT;
+	long timeout = BRIKSDALL_TIMEOUT;
+
+	sendByEsp8266("ATE0", timeout);						// echo off
+	sendByEsp8266("AT+CIPMUX=1", timeout);				// Multiple connections setting												
+	sendByEsp8266("AT+CIPSERVER=1," + port, timeout);	// start web server and listen on port PORT
+	
+	Serial.println("\nStarting Arduino web server on port " + port);
+}
+
+
+
+void loop()
+{
+	// web server
+	if (esp8266.available() > 0) {
+		accept_client();
+	}
+}
+
+void accept_client() {
+	bool debug = DEBUG;
+
+	// new data available...
+	Serial.println("WEB SERVER. new request incoming ...");
+
+	String rawData = "";	// raw data from esp8266
+
+	// get data
+	while (esp8266.available() > 0) {
+		int iRead = esp8266.read();
+		char cRead = (char)iRead;
+		if (iRead == 13) {
+			//parse string....
+			rawData += "\0";
+			if (debug) {
+				Serial.print("DEBUG. Received -> ");
+				Serial.println(rawData);
+			}
+		}
+		else {
+			rawData += cRead;
+		}
+		delay(10);
+	}
+	esp8266.flush();
+	Serial.flush();
+	// Parse data...
+	int index = rawData.indexOf("+IPD,");		// +IPD,3,329:GET /favicon.ico HTTP/1.1
+	if (index < 1) {
+		Serial.println("WEB SERVER: Error reading data (IPD NOT Found). Discard...");
+		Serial.flush();
+		return;
+	}
+	index += 5;
+	String str_id = rawData.substring(index, index + 1);		// request client id
+	index = index + 6;
+	int get_index = rawData.indexOf("GET ", index);
+	if (get_index < 1) {
+		resolve_error(str_id);
+		Serial.println("WEB SERVER: Error reading data (GET not found). Discard...");
+		Serial.flush();
+		return;
+	}
+	get_index += 4;
+	index = rawData.indexOf(" ", get_index);
+	String resource = rawData.substring(get_index, index);			// resource requested
+	Serial.println("WEB SERVER: GET Found. Requested: " + resource);
+	if (resource.equals("/")) {
+		// requested "/", so it's a classic browser request
+		resolve_homepage(str_id);
+	}
+	else {
+		// requested a particular resource
+		resolve_resource(str_id, resource.substring(1));
+	}
+	
+	return;
+}
+
+
+// function: resolve_homepage
+// Response in html format.
+// Param -> client id.
+// Return value -> none.
+void resolve_homepage(String ch_id) {
+
+	Serial.println("WEB SERVER. Building html response.");
+
+	// reading from dht11
+	readDHT11();
+
+	// variables
+	String header = "";
+	String content = "";
+	String deviceid = DEVICE_ID;
+	String lifetime = getLifeTime();
+
+	// make html response
+	content += "<html>";
+	content += "<head>";
+	content += "<title>" + deviceid + "</title>";
+	content += "</head>";
+	content += "<body>";
+	content += "<h3>Arduino: " + deviceid + "</h3>";
+	content += "<h4>Temperature: " + String(_temperature) + "</h4>";
+	content += "<h4>Humidity: " + String(_humidity) + "</h4>";
+	content += "<h4>Life time: " + lifetime + "</h4>";
+	content += "</body>";
+	content += "</html>";
+	content += "\r\n\r\n";
+
+	header = header_ok((int)(content.length()));
+
+	// sending data on esp8266
+	String datarcv = "";
+	long timeout = BRIKSDALL_TIMEOUT;
+	String data2send = "AT+CIPSEND=" + ch_id + "," + String(header.length() + content.length());
+
+	datarcv = sendByEsp8266(data2send, timeout);
+	datarcv = sendByEsp8266(header, timeout);
+	datarcv = sendByEsp8266(content, timeout);
+
+	bool operationOK = (datarcv.length() > 0);
+	
+	// close the connection
+	data2send = "AT+CIPCLOSE=" + ch_id;
+	sendByEsp8266(data2send, timeout);
+
+	return;
+}
+// function: resolve_resource
+// Response in json format.
+// Param -> client id.
+// Param -> requested resource.
+// Return value -> none.
+void resolve_resource(String ch_id, String resource) {
+
+	Serial.println("WEB SERVER. Building json response (resource: " + resource + ").");
+	
+	// reading from dht11
+	readDHT11();
+
+	// make html response
+	String header = "";
+	String content = "";
+	String resource_value = getResourceValue(resource);
+
+	content += "{";
+	content += resource_value;
+	content += "}";
+	content += "\r\n\r\n";
+
+	header = header_ok((int)(content.length()));
+
+	// sending data on esp8266
+	String datarcv = "";
+	long timeout = BRIKSDALL_TIMEOUT;
+	String data2send = "AT+CIPSEND=" + ch_id + "," + String(header.length() + content.length());
+
+	datarcv = sendByEsp8266(data2send, timeout);
+	datarcv = sendByEsp8266(header, timeout);
+	datarcv = sendByEsp8266(content, timeout);
+
+	bool operationOK = (datarcv.length() > 0);
+
+	// close the connection
+	data2send = "AT+CIPCLOSE=" + ch_id;
+	sendByEsp8266(data2send, timeout);
+
+	return;
+
+}
+// function: resolve_error
+// Error response (html code: 503) in html format.
+// Param -> client id.
+// Return value -> none.
+void resolve_error(String ch_id) {
+	
+	String deviceid = DEVICE_ID;
+
+	Serial.println("WEB SERVER. Building error response.");
+
+	// make html response
+	String header = "";
+	String content = "";
+
+	content += "<html>";
+	content += "<head>";
+	content += "<title>" + deviceid + "</title>";
+	content += "</head>";
+	content += "<body>";
+	content += "<h3>Arduino: " + deviceid + "</h3>";
+	content += "<h4>Error reading data from socket</h4>";
+	content += "</body>";
+	content += "</html>";
+	content += "\r\n\r\n";
+
+	header += "HTTP/1.1 503 Service Temporarily Unavailable\r\nRetry-After: 30\r\n";
+	header += "Content-Length:";
+	header += (int)(content.length());
+	header += "\r\n\r\n";
+
+	// sending data on esp8266
+	String datarcv = "";
+	long timeout = BRIKSDALL_TIMEOUT;
+	String data2send = "AT+CIPSEND=" + ch_id + "," + String(header.length() + content.length());
+
+	datarcv = sendByEsp8266(data2send, timeout);
+	datarcv = sendByEsp8266(header, timeout);
+	datarcv = sendByEsp8266(content, timeout);
+
+	bool operationOK = (datarcv.length() > 0);
+
+	// close the connection
+	data2send = "AT+CIPCLOSE=" + ch_id;
+	sendByEsp8266(data2send, timeout);
+
+	return;
+
+}
+
+
+
+String header_ok(int content_length) {
+	String header = "";
+
+	header += "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\nRefresh: 20\r\n";
+	header += "Content-Length:";
+	header += (String)(content_length);
+	header += "\r\n\r\n";
+
+	return header;
+}
+
+
+// function: getResourceValue
+// Get the value of a resource.
+// Param -> resource name.
+// Return value -> resource value.
+String getResourceValue(String resource_name) {
+
+	String device_id = DEVICE_ID;
+	String lifetime = getLifeTime();
+
+	String content = "\"ID\": \"" + device_id + +"\",";
+	content += "\"LIFETIME\": \"" + lifetime + +"\",";
+
+	if ((resource_name == "T") || (resource_name == "ALL")) {
+		content += "\"TEMPERATURE\": \"" + String(_temperature) + +"\",";
+	}
+	
+	if ((resource_name == "H") || (resource_name == "ALL")) {
+		content += "\"HUMIDITY\": \"" + String(_humidity) + "\",";
+	}
+	
+	content.remove(content.length() - 1);
+
+	return content;
+}

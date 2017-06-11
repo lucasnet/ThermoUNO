@@ -83,6 +83,9 @@
   <ItemGroup>
     <ClInclude Include="__vm\.ThermoUNO.vsarduino.h" />
   </ItemGroup>
+  <ItemGroup>
+    <Text Include="Notes.txt" />
+  </ItemGroup>
   <PropertyGroup>
     <DebuggerFlavor>VisualMicroDebugger</DebuggerFlavor>
   </PropertyGroup>
