@@ -1,0 +1,33 @@
+{
+  "configurations": [
+    {
+      "name": "Visual Micro",
+      "intelliSenseMode": "msvc-x64",
+      "includePath": [
+        "${projectRoot}..\\..\\..\\..\\ArduinoIDE\\hardware\\arduino\\avr\\libraries\\SoftwareSerial\\src",
+        "${projectRoot}..\\..\\libraries\\SimpleDHT",
+        "${projectRoot}..\\..\\..\\..\\ArduinoIDE\\libraries",
+        "${projectRoot}..\\..\\..\\..\\ArduinoIDE\\hardware\\arduino\\avr\\libraries",
+        "${projectRoot}..\\..\\libraries",
+        "${projectRoot}..\\..\\..\\..\\ArduinoIDE\\hardware\\arduino\\avr\\cores\\arduino",
+        "${projectRoot}..\\..\\..\\..\\ArduinoIDE\\hardware\\arduino\\avr\\variants\\standard",
+        "${projectRoot}..\\ThermoUNO",
+        "${projectRoot}..\\..\\..\\..\\ArduinoIDE\\hardware\\tools\\avr\\avr\\include\\",
+        "${projectRoot}..\\..\\..\\..\\ArduinoIDE\\hardware\\tools\\avr\\avr\\include\\avr\\",
+        "${projectRoot}..\\..\\..\\..\\ArduinoIDE\\hardware\\tools\\avr\\lib\\gcc\\avr\\4.8.1\\include",
+        "${projectRoot}..\\..\\..\\..\\ArduinoIDE\\hardware\\tools\\avr\\lib\\gcc\\avr\\4.9.2\\include",
+        "${projectRoot}..\\..\\..\\..\\ArduinoIDE\\hardware\\tools\\avr\\lib\\gcc\\avr\\4.9.3\\include"
+      ],
+      "defines": [
+        "__AVR_ATmega328p__",
+        "__AVR_ATmega328P__",
+        "F_CPU=16000000L",
+        "ARDUINO=10801",
+        "ARDUINO_AVR_UNO",
+        "ARDUINO_ARCH_AVR",
+        "__cplusplus=201103L",
+        "_VMICRO_INTELLISENSE"
+      ]
+    }
+  ]
+}

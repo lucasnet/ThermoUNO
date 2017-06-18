@@ -16,11 +16,11 @@
 #define BRIKSDALL_URL "192.168.1.33"		// Briksdall Url
 #define BRIKSDALL_PORT "81"					// Briksdall Port
 #define BRIKSDALL_HUB "/ws/hub.ashx"		// Briksdall Hub Entry Point
-#define BRIKSDALL_TIMEOUT 5000;				// Briksdall Connection Timeout (milliseconds)
-#define POOL_INTERVAL 1;					// Briksdall send data interval (in minutes)
-#define DEVICE_ID "auno_01";				// Device ID -> change it for every arduino board!!!
+#define BRIKSDALL_TIMEOUT 5000				// Briksdall Connection Timeout (milliseconds)
+#define POOL_INTERVAL 1						// Briksdall send data interval (in minutes)
+#define DEVICE_ID "auno_01"					// Device ID -> change it for every arduino board!!!
 #define PORT  "8080"						// Web Server Port
-#define DEBUG true;							// flag for debug
+#define DEBUG true							// flag for debugs
 
 // GLOBAL VARIABLES definition
 SoftwareSerial esp8266(RX_ESP, TX_ESP);		// Serial software for comunicating with esp8266
@@ -143,7 +143,7 @@ void readDHT11() {
 // Param -> value : "value" value
 // Return value -> true if trasmission completes successfully, false otherwise.
 bool send2Briksdall(String names[], int values[]) {
-	String timestamp = getLifeTime();
+	String timestamp = String(millis());
 
 	String logmessage = "BRIKSDALL: Sending Data, attempt ";
 	bool transmissionOK = false;
@@ -229,7 +229,7 @@ bool post2briksdall(String timestamp, String names[], int values[]) {
 	postRequest += "Accept: */*\r\n";
 	postRequest += "Content-Length: " + String(rawdata.length()) + "\r\n";
 	postRequest += "Content-Type: application/x-www-form-urlencoded\r\n";
-	postRequest += "\r\n" + rawdata;
+	postRequest += "\r\n" + rawdata + "\r\n\r\n";
 	data2send = "AT+CIPSEND=1," + String(postRequest.length());
 	datarcv = sendByEsp8266(data2send, timeout);
 	operationOK = received_ok(datarcv);
@@ -292,6 +292,7 @@ void closing_connection(int timeout) {
 String sendByEsp8266(String rawdata, long timeout) {
 	String datarcv = "";
 	bool debug = DEBUG;
+	bool time_out = true;
 
 	// Sending to esp8266..
 	if (debug) {
@@ -300,23 +301,38 @@ String sendByEsp8266(String rawdata, long timeout) {
 	}
 	esp8266.println(rawdata);
 
+	delay(10);
+
 	// Handling the response...
 	if (debug) Serial.print("DEBUG. Receive -> ");
 	long time = millis();
-	while ((time + timeout) > millis()) {
+	while (((time + timeout) > millis()) && time_out) {
 		int raw_char = esp8266.read();
 		char c = (char)raw_char;
-		if (raw_char == 13) {
+
+		switch (raw_char)
+		{
+		case -1:
+		case 13:
 			datarcv += "\0";
 			if (debug) Serial.println("");
+			time_out = false;
 			break;
-		}
-		else {
+
+		default:
 			if (debug) Serial.print(c);
 			datarcv = datarcv + c;
+			time = millis();
+			break;
 		}
+		
 
 		delay(10);
+	}
+
+	if (time_out)
+	{
+		if (debug) Serial.println("... Timeout!!");
 	}
 
 	esp8266.flush();
