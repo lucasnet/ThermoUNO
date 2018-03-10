@@ -16,7 +16,8 @@
 #define BRIKSDALL_URL "192.168.1.33"		// Briksdall Url
 #define BRIKSDALL_PORT "81"					// Briksdall Port
 #define BRIKSDALL_HUB "/ws/hub.ashx"		// Briksdall Hub Entry Point
-#define DEVICE_ID "auno_01"					// Device ID -> change it for every arduino board!!!
+#define DEVICE_HOST "auno_01"				// Device HOST -> change it for every arduino board!!!
+#define DEVICE_ID 1							// Device ID -> change it for every arduino board!!!
 #define BRIKSDALL_TIMEOUT 10000				// Briksdall Connection Timeout (milliseconds)
 #define POOL_INTERVAL 1						// Briksdall send data interval (in minutes)
 #define PHYSICAL_ENTITIES 2					// Number of Physical entities (to misure...)
@@ -28,6 +29,7 @@ SimpleDHT11 dht11;							// global interface for comunicating with dht11 sensor
 byte _temperature = 0;						// temperature value to send
 byte _humidity = 0;							// humidity value to send
 unsigned long _pool_interval = 0;			// Briksdall send data interval (in milliseconds)
+unsigned long _time_counter = 0;
 
 
 // main functions
@@ -41,11 +43,14 @@ void setup()
 
 void loop()
 {
-	unsigned long millisec = millis();
+	//unsigned long millisec = millis();
+	_time_counter++;
+	Serial.println(_time_counter);
 
 	// sending data to briksdall...
-	if ((millisec % _pool_interval) < 1000) {
-
+	//if ((millisec % _pool_interval) < 2000) {
+	if (_time_counter > _pool_interval) {
+		_time_counter = 0;
 		log_message("ARDUINO: it's time to send DHT11 data ...", true);
 
 		// reading values from dht11
@@ -73,14 +78,11 @@ void loop()
 void startClient() {
 
 	_pool_interval = POOL_INTERVAL;			// setup briksdall pool interval...
-	_pool_interval = _pool_interval * 1000 * 60;
+	_pool_interval = _pool_interval * 100 * 60;
 
 	sendByEsp8266("ATE0", BRIKSDALL_TIMEOUT);			// echo off
 	sendByEsp8266("AT+CIPMUX=0", BRIKSDALL_TIMEOUT);	// Multiple connections setting (0=NO)
 
-	//char strlog[100] = "";
-	//sprintf(strlog, "ARDUINO: Start. Pool interval is %u ms.", _pool_interval);
-	//log_message(strlog, true);
 	log_message("ARDUINO: start", true);
 
 }
@@ -197,11 +199,11 @@ bool post2briksdall(char timestamp[], char names[2], int values[]) {
 	long request_length = 0;										// post request length
 	char postRequest[180];											// post request
 	// row 1
-	sprintf(str_row, "POST %s/%s HTTP/1.1", BRIKSDALL_HUB, DEVICE_ID);
+	sprintf(str_row, "POST %s/%s HTTP/1.1", BRIKSDALL_HUB, DEVICE_HOST);
 	request_length = request_length + strlen(str_row) + 2;
 	sprintf(postRequest, "%s\r\n", str_row);
 	// row 2
-	sprintf(str_row, "Host: %s.local", DEVICE_ID);
+	sprintf(str_row, "Host: %s.local", DEVICE_HOST);
 	request_length = request_length + strlen(str_row) + 2;
 	sprintf(postRequest, "%s%s\r\n", postRequest, str_row);
 	// row 3
@@ -255,7 +257,7 @@ bool post2briksdall(char timestamp[], char names[2], int values[]) {
 /// values: arrays of values.
 char *create_postData(char timestamp[], char names[], int values[]){
 	char rawdata[32] = "";
-	sprintf(rawdata, "timestamp=%s", timestamp);
+	sprintf(rawdata, "timestamp=%s&ID=%u", timestamp, DEVICE_ID);
 
 	// in a microcontroller environment it's better to use fixed values than "sizeof" function
 	// sizeof(names) function returns the size of pointer to "names" (it's a pointer, so 2 bytes)
