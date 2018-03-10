@@ -2,21 +2,21 @@
   "configurations": [
     {
       "name": "Visual Micro",
-      "intelliSenseMode": "msvc-x64",
+      "intelliSenseMode": "windows-msvc-x64",
       "includePath": [
-        "${projectRoot}..\\..\\..\\..\\ArduinoIDE\\hardware\\arduino\\avr\\libraries\\SoftwareSerial\\src",
+        "${projectRoot}..\\ThermoUNO",
+        "C:\\Users\\lucas\\AppData\\Local\\arduino15\\packages\\arduino\\hardware\\avr\\1.6.20\\libraries\\SoftwareSerial\\src",
         "${projectRoot}..\\..\\libraries\\SimpleDHT",
         "${projectRoot}..\\..\\..\\..\\ArduinoIDE\\libraries",
-        "${projectRoot}..\\..\\..\\..\\ArduinoIDE\\hardware\\arduino\\avr\\libraries",
+        "C:\\Users\\lucas\\AppData\\Local\\arduino15\\packages\\arduino\\hardware\\avr\\1.6.20\\libraries",
         "${projectRoot}..\\..\\libraries",
-        "${projectRoot}..\\..\\..\\..\\ArduinoIDE\\hardware\\arduino\\avr\\cores\\arduino",
-        "${projectRoot}..\\..\\..\\..\\ArduinoIDE\\hardware\\arduino\\avr\\variants\\standard",
-        "${projectRoot}..\\ThermoUNO",
-        "${projectRoot}..\\..\\..\\..\\ArduinoIDE\\hardware\\tools\\avr\\avr\\include\\",
-        "${projectRoot}..\\..\\..\\..\\ArduinoIDE\\hardware\\tools\\avr\\avr\\include\\avr\\",
-        "${projectRoot}..\\..\\..\\..\\ArduinoIDE\\hardware\\tools\\avr\\lib\\gcc\\avr\\4.8.1\\include",
-        "${projectRoot}..\\..\\..\\..\\ArduinoIDE\\hardware\\tools\\avr\\lib\\gcc\\avr\\4.9.2\\include",
-        "${projectRoot}..\\..\\..\\..\\ArduinoIDE\\hardware\\tools\\avr\\lib\\gcc\\avr\\4.9.3\\include"
+        "C:\\Users\\lucas\\AppData\\Local\\arduino15\\packages\\arduino\\hardware\\avr\\1.6.20\\cores\\arduino",
+        "C:\\Users\\lucas\\AppData\\Local\\arduino15\\packages\\arduino\\hardware\\avr\\1.6.20\\variants\\standard",
+        "C:\\Users\\lucas\\AppData\\Local\\arduino15\\packages\\arduino\\tools\\avr-gcc\\4.9.2-atmel3.5.4-arduino2\\avr\\include\\",
+        "C:\\Users\\lucas\\AppData\\Local\\arduino15\\packages\\arduino\\tools\\avr-gcc\\4.9.2-atmel3.5.4-arduino2\\avr\\include\\avr\\",
+        "C:\\Users\\lucas\\AppData\\Local\\arduino15\\packages\\arduino\\tools\\avr-gcc\\4.9.2-atmel3.5.4-arduino2\\lib\\gcc\\avr\\4.8.1\\include",
+        "C:\\Users\\lucas\\AppData\\Local\\arduino15\\packages\\arduino\\tools\\avr-gcc\\4.9.2-atmel3.5.4-arduino2\\lib\\gcc\\avr\\4.9.2\\include",
+        "C:\\Users\\lucas\\AppData\\Local\\arduino15\\packages\\arduino\\tools\\avr-gcc\\4.9.2-atmel3.5.4-arduino2\\lib\\gcc\\avr\\4.9.3\\include"
       ],
       "defines": [
         "__AVR_ATmega328p__",
