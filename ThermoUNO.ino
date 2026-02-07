@@ -1,19 +1,30 @@
 #include <SoftwareSerial.h>
+#include <DHT.h>
+#include <DHT_U.h>
+
+#define DHTPIN 4          // Digital pin connected to the DHT sensor 
+#define DHTTYPE DHT11     // DHT 11
+
+DHT_Unified dht(DHTPIN, DHTTYPE);
+uint32_t delayMS;
 
 // Pin configuration: RX pin 2, TX pin 3
 SoftwareSerial esp8266(2, 3);
 
 const String SSID = "Telecom-33318697";
 const String PASS = "qwertyuiopASDFGHJKL1234567890";
-//const String HOST = "webhook.site";
-const String HOST = "192.168.1.35";
-const int PORT = 8000;
-//const int PORT = 80;
-//const String RESOURCE = "/753bfa51-cb20-4f8e-a444-dbe1c3cb57f9";
-const String RESOURCE = "/api/iothub/raw";
+const String HOST = "webhook.site";
+// const String HOST = "192.168.1.35";
+// const int PORT = 8000;
+const int PORT = 80;
+const String RESOURCE = "/9d79f7fd-4d28-42e4-b836-c2c285a4ec96";
+// const String RESOURCE = "/api/iothub/raw";
 
 String IpAddr = "**";
 String MacAddr = "**";
+String SensorType = "**";
+float temperature = 0;
+float humidity = 0;
 
 
 
@@ -28,11 +39,43 @@ void setup() {
   }
   Serial.println("ESP8266 ready.");
   
+  // setup dht
+  dht.begin();
+  sensor_t sensor;
+  dht.temperature().getSensor(&sensor);
+  // Serial.println(F("Temperature Sensor"));
+  // Serial.print  (F("Sensor Type: ")); Serial.println(sensor.name);
+  // Serial.print  (F("Driver Ver:  ")); Serial.println(sensor.version);
+  // Serial.print  (F("Unique ID:   ")); Serial.println(sensor.sensor_id);
+  // Serial.print  (F("Max Value:   ")); Serial.print(sensor.max_value); Serial.println(F("°C"));
+  // Serial.print  (F("Min Value:   ")); Serial.print(sensor.min_value); Serial.println(F("°C"));
+  // Serial.print  (F("Resolution:  ")); Serial.print(sensor.resolution); Serial.println(F("°C"));
+  // Serial.println(F("------------------------------------"));
+  // Print humidity sensor details.
+  dht.humidity().getSensor(&sensor);
+  // Serial.println(F("Humidity Sensor"));
+  // Serial.print  (F("Sensor Type: ")); Serial.println(sensor.name);
+  // Serial.print  (F("Driver Ver:  ")); Serial.println(sensor.version);
+  // Serial.print  (F("Unique ID:   ")); Serial.println(sensor.sensor_id);
+  // Serial.print  (F("Max Value:   ")); Serial.print(sensor.max_value); Serial.println(F("%"));
+  // Serial.print  (F("Min Value:   ")); Serial.print(sensor.min_value); Serial.println(F("%"));
+  // Serial.print  (F("Resolution:  ")); Serial.print(sensor.resolution); Serial.println(F("%"));
+  // Serial.println(F("------------------------------------"));
+  // Set delay between sensor readings based on sensor details.
+  delayMS = sensor.min_delay / 1000;
+
 }
 
+
+
 void loop() {
+
+  readFromDHT11();
+  
+  
   delay(5000);
-  sendJsonCloud(25.5, IpAddr, MacAddr); 
+
+  sendData(temperature, humidity, IpAddr, MacAddr); 
   delay(25000);
 }
 
@@ -98,34 +141,69 @@ bool checkWiFi() {
   }
 }
 
-void sendJsonCloud(float valore, String ipaddr, String macaddr) {
-  // 1. JSON payload
-  //String json = "{\"device\":\"ESP01\",\"data\":\"{\\\"date\\\":\\\"17/11/2025\\\", \\\"value\\\":\\\"" + String(valore) + "\\\"}\"}";
-  String json = buildJson(valore, ipaddr, macaddr);
-  
-  // 2. HTTP POST request
-  String richiesta = "POST " + RESOURCE + " HTTP/1.1\r\n";
-  richiesta += "Host: " + HOST + ":" + String(PORT) + "\r\n";
-  richiesta += "Content-Type: application/json\r\n";
-  richiesta += "Content-Length: " + String(json.length()) + "\r\n";
-  richiesta += "Connection: close\r\n\r\n";
-  richiesta += json;
 
-  // 3. Apriamo la connessione TCP
+
+void sendData(float temp, float hum, String ipaddr, String macaddr) {
+  // 1. Open TCP connection
+  Serial.println(F("Open TCP Connection..."));
   esp8266.println("AT+CIPSTART=\"TCP\",\"" + HOST + "\"," + String(PORT));
-  if(waitForResponse("OK", 6000)) {
-    Serial.println("Connected.");
+  
+  if (!waitForResponse("OK", 3000)) {
+    Serial.println(F("Error: Can't connect to host."));
+    return; 
+  }
+
+  // 2. Calcolo della lunghezza esatta del JSON (Streaming)
+  // Il tuo JSON: {"device":"MAC","data":"{\"ipaddr\":\"IP\", \"temp\":\"TEMP\", \"hum\":\"0\"}"}
+  // Contiamo i caratteri fissi che vanno "sul filo" dopo che C++ ha elaborato gli escape
+  String tempStr = String(temp);
+  String humStr = String(hum);
+  int jsonLength = 11; // {"device":"
+  jsonLength += macaddr.length();
+  jsonLength += 24;    // ","data":"{\"ipaddr\":\" 
+  jsonLength += ipaddr.length();
+  jsonLength += 15;    // \", \"temp\":\"  (incluso spazio dopo virgola)
+  jsonLength += tempStr.length();
+  jsonLength += 14;    // \", \"hum\":\"
+  jsonLength += humStr.length();
+  jsonLength += 5; // \"}"}
+  
+  // 3. Prepariamo gli header HTTP
+  String header = "POST " + RESOURCE + " HTTP/1.1\r\n";
+  header += "Host: " + HOST + ":" + String(PORT) + "\r\n";
+  header += "Content-Type: application/json\r\n";
+  header += "Content-Length: " + String(jsonLength) + "\r\n";
+  header += "Connection: close\r\n\r\n";
+
+  // 4. Inviamo il comando CIPSEND con la somma totale
+  int totaleInvio = header.length() + jsonLength;
+  esp8266.print(F("AT+CIPSEND="));
+  esp8266.println(totaleInvio);
+
+  if (waitForResponse(">", 2000)) {
+    // 5. Inviamo l'Header
+    esp8266.print(header);
     
-    // 4. Inviamo il comando CIPSEND con la lunghezza totale della richiesta
-    esp8266.println("AT+CIPSEND=" + String(richiesta.length()));
-    
-    if(waitForResponse(">", 2000)) {
-      // 5. Inviamo finalmente la richiesta HTTP
-      esp8266.print(richiesta);
-      Serial.println("JSON data sent!");
+    // 6. Inviamo il JSON pezzo per pezzo (Streaming)
+    // Usiamo F() per non occupare RAM
+    esp8266.print(F("{\"device\":\""));
+    esp8266.print(macaddr);
+    esp8266.print(F("\",\"data\":\"{\\\"ipaddr\\\":\\\""));
+    esp8266.print(ipaddr);
+    esp8266.print(F("\\\", \\\"temp\\\":\\\""));
+    esp8266.print(tempStr);
+    esp8266.print(F("\\\", \\\"hum\\\":\\\""));
+    esp8266.print(humStr);
+    esp8266.print(F("\\\"}\"}"));
+
+    // 7. Aspettiamo la conferma dall'ESP
+    if (waitForResponse("SEND OK", 3000)) {
+      Serial.println(F("Successo: JSON inviato e ricevuto dall'ESP!"));
+    } else {
+      Serial.println(F("Errore: L'invio dei dati è fallito o è andato in timeout."));
     }
   } else {
-    Serial.println("TCP connection error.");
+    Serial.println(F("Errore: L'ESP non è pronto per ricevere i dati (manca >)."));
   }
 }
 
@@ -176,9 +254,32 @@ String getAddr(String s, String prefix) {
 
 }
 
-// build json
-String buildJson(float valore, String ipaddr, String macaddr) {
-  String json = "{\"device\":\"" + macaddr + "\",\"data\":\"{\\\"mac\\\":\\\"" + macaddr + "\\\", \\\"ipaddr\\\":\\\"" + ipaddr + "\\\", \\\"date\\\":\\\"17/11/2025\\\", \\\"value\\\":\\\"" + String(valore) + "\\\"}\"}";
 
-  return json;
+void readFromDHT11() {
+  Serial.println(F("Reading from DHT11..."));
+  // Delay between measurements.
+  delay(delayMS);
+  // Get temperature event and print its value.
+  sensors_event_t event;
+  dht.temperature().getEvent(&event);
+  if (isnan(event.temperature)) {
+    Serial.println(F("Error reading temperature!"));
+  }
+  else {
+    temperature = event.temperature;
+    Serial.print(F("Temperature: "));
+    Serial.print(temperature);
+    Serial.println(F("°C"));
+  }
+  // Get humidity event and print its value.
+  dht.humidity().getEvent(&event);
+  if (isnan(event.relative_humidity)) {
+    Serial.println(F("Error reading humidity!"));
+  }
+  else {
+    humidity = event.relative_humidity;
+    Serial.print(F("Humidity: "));
+    Serial.print(humidity);
+    Serial.println(F("%"));
+  }
 }
