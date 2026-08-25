@@ -17,7 +17,7 @@ const String HOST = "webhook.site";
 // const String HOST = "192.168.1.35";
 // const int PORT = 8000;
 const int PORT = 80;
-const String RESOURCE = "/9d79f7fd-4d28-42e4-b836-c2c285a4ec96";
+const String RESOURCE = "/eaa4644d-2fcc-479b-89e4-c370c57fd96d";
 // const String RESOURCE = "/api/iothub/raw";
 
 String IpAddr = "**";
@@ -32,10 +32,10 @@ void setup() {
   Serial.begin(9600);    // Pc communication
   esp8266.begin(9600);   // ESP8266 communication (try 115200...)
 
-  Serial.println("Check connection...");
+  Serial.println("Checking WiFi connection...");
   // Check if already connected (AT+CIPSTATUS or AT+CIFSR)
-  if (!checkWiFi()) { 
-    connettiWiFi();
+  while (!checkWiFi()) { 
+    connectWiFi();
   }
   Serial.println("ESP8266 ready.");
   
@@ -43,24 +43,8 @@ void setup() {
   dht.begin();
   sensor_t sensor;
   dht.temperature().getSensor(&sensor);
-  // Serial.println(F("Temperature Sensor"));
-  // Serial.print  (F("Sensor Type: ")); Serial.println(sensor.name);
-  // Serial.print  (F("Driver Ver:  ")); Serial.println(sensor.version);
-  // Serial.print  (F("Unique ID:   ")); Serial.println(sensor.sensor_id);
-  // Serial.print  (F("Max Value:   ")); Serial.print(sensor.max_value); Serial.println(F("°C"));
-  // Serial.print  (F("Min Value:   ")); Serial.print(sensor.min_value); Serial.println(F("°C"));
-  // Serial.print  (F("Resolution:  ")); Serial.print(sensor.resolution); Serial.println(F("°C"));
-  // Serial.println(F("------------------------------------"));
   // Print humidity sensor details.
   dht.humidity().getSensor(&sensor);
-  // Serial.println(F("Humidity Sensor"));
-  // Serial.print  (F("Sensor Type: ")); Serial.println(sensor.name);
-  // Serial.print  (F("Driver Ver:  ")); Serial.println(sensor.version);
-  // Serial.print  (F("Unique ID:   ")); Serial.println(sensor.sensor_id);
-  // Serial.print  (F("Max Value:   ")); Serial.print(sensor.max_value); Serial.println(F("%"));
-  // Serial.print  (F("Min Value:   ")); Serial.print(sensor.min_value); Serial.println(F("%"));
-  // Serial.print  (F("Resolution:  ")); Serial.print(sensor.resolution); Serial.println(F("%"));
-  // Serial.println(F("------------------------------------"));
   // Set delay between sensor readings based on sensor details.
   delayMS = sensor.min_delay / 1000;
 
@@ -92,7 +76,7 @@ void SendCommand(String command, const int timeout) {
   }
 }
 
-void connettiWiFi() {  
+void connectWiFi() {  
   Serial.println("Begin Wi-Fi configuration...");
 
   // 1. Response test
@@ -103,7 +87,7 @@ void connettiWiFi() {
   
   // 3. Connection
   String cmdConnection = "AT+CWJAP=\"" + SSID + "\",\"" + PASS + "\"";
-  Serial.println("Connect to: " + SSID);
+  Serial.println("Connecting to: " + SSID);
   SendCommand(cmdConnection, 7000); // Connection can require some seconds...
 
   delay(5000);
@@ -125,6 +109,7 @@ bool checkWiFi() {
       response += c;
     }
   }
+
 
   // If response contains "192." (or something like an IP address) we are connected.
   // If it contains "0.0.0.0" we aren't connected
@@ -198,12 +183,12 @@ void sendData(float temp, float hum, String ipaddr, String macaddr) {
 
     // 7. Aspettiamo la conferma dall'ESP
     if (waitForResponse("SEND OK", 3000)) {
-      Serial.println(F("Successo: JSON inviato e ricevuto dall'ESP!"));
+      Serial.println(F("JSON data SENT correctly!"));
     } else {
-      Serial.println(F("Errore: L'invio dei dati è fallito o è andato in timeout."));
+      Serial.println(F("ERROR: Send data failed or timeout."));
     }
   } else {
-    Serial.println(F("Errore: L'ESP non è pronto per ricevere i dati (manca >)."));
+    Serial.println(F("ERROR: ESP is not ready to receive data (waiting >)."));
   }
 }
 
