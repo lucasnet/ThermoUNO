@@ -13,12 +13,15 @@ SoftwareSerial esp8266(2, 3);
 
 const String SSID = "Telecom-33318697";
 const String PASS = "qwertyuiopASDFGHJKL1234567890";
-const String HOST = "webhook.site";
-// const String HOST = "192.168.1.35";
-// const int PORT = 8000;
-const int PORT = 80;
-const String RESOURCE = "/eaa4644d-2fcc-479b-89e4-c370c57fd96d";
-// const String RESOURCE = "/api/iothub/raw";
+// // web hook site
+// const String HOST = "webhook.site";
+// const int PORT = 80;
+// const String RESOURCE = "/eaa4644d-2fcc-479b-89e4-c370c57fd96d";
+
+// briksdal site
+const String HOST = "192.168.1.38";
+const int PORT = 8000;
+const String RESOURCE = "/api/iothub/raw";
 
 String IpAddr = "**";
 String MacAddr = "**";
